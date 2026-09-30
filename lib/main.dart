@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lekgotla_la_makhetha/screens/makhetha_history_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // Services
 import 'services/theme_service.dart';
+import 'services/clan_settings_service.dart';
+import 'services/clan_auth_service.dart';
 
 // Screens
 import 'screens/yaga_marketplace_screen.dart';
@@ -21,6 +24,8 @@ import 'screens/clan_committee_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ThemeService().initTheme();
+  await ClanSettingsService().initSettings();
+  await ClanAuthService().initAuth(); // 📍 Added Auth Guard
   runApp(const MakhethaClanApp());
 }
 
@@ -1565,6 +1570,14 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
 
             // --- 4. HERITAGE & SOLIDARITY ---
             _sidebarHeader("HERITAGE & SOLIDARITY", brandColor),
+            _sidebarTile(
+  Icons.auto_stories_rounded,
+  "Nalane ea ha Makhetha (History Book)",
+  "Origins, Chief Makhetha, 'Mantsopa & Lithoko",
+  () => const MakhethaHistoryScreen(),
+  context,
+  onSurfaceColor,
+),
             _sidebarTile(
               Icons.family_restroom_rounded,
               "Family Lineage & Bakoena Roots",

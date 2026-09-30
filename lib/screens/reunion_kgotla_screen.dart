@@ -1,6 +1,10 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/clan_settings_service.dart';
+import '../services/clan_auth_service.dart';
 
 class KgotlaTopic {
   final String id;
@@ -8,8 +12,10 @@ class KgotlaTopic {
   final String authorName;
   final String branch;
   final String description;
-  int votes;
-  bool hasVoted;
+  int likes;
+  int dislikes;
+  String? userVote; // 'like', 'dislike', or null
+  bool isFinalised;
 
   KgotlaTopic({
     required this.id,
@@ -17,9 +23,13 @@ class KgotlaTopic {
     required this.authorName,
     required this.branch,
     required this.description,
-    required this.votes,
-    this.hasVoted = false,
+    required this.likes,
+    required this.dislikes,
+    this.userVote,
+    this.isFinalised = false,
   });
+
+  int get netScore => likes - dislikes;
 }
 
 class ReunionKgotlaScreen extends StatefulWidget {
@@ -33,65 +43,62 @@ class _ReunionKgotlaScreenState extends State<ReunionKgotlaScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Interactive Voting State
-  final List<KgotlaTopic> _tabledTopics = [
+  final List<KgotlaTopic> _allTopics = [
+    // Finalised Topics (Approved based on high net votes & council vetting)
     KgotlaTopic(
-      id: "1",
-      title: "Establishment of the Makhetha Youth Education & Bursary Fund",
+      id: "T1",
+      title: "Establishment of the Makhetha Higher Education Bursary Trust",
       authorName: "Ausi Refiloe Makhetha",
       branch: "Gauteng Branch",
-      description:
-          "Pooling collective clan funds to assist promising Makhetha students with tertiary registration fees and textbook allowances.",
-      votes: 142,
+      description: "Pooling collective funds to assist promising Makhetha students with tertiary fees and laptops.",
+      likes: 156,
+      dislikes: 4,
+      isFinalised: true,
     ),
     KgotlaTopic(
-      id: "2",
+      id: "T2",
       title: "Digital Archiving of Clan Praise Poems (Lithoko) & Lineage Tree",
       authorName: "Ntate Sello Makhetha",
       branch: "Free State Branch",
-      description:
-          "Interviewing surviving branch elders to record our ancestral origins, totems, and family tree dating back to the 1800s.",
-      votes: 118,
+      description: "Recording elderly oral histories and mapping the family tree from 1800 to the present day.",
+      likes: 124,
+      dislikes: 2,
+      isFinalised: true,
     ),
+
+    // Active Proposal Topics (Still in democratic debate & voting)
     KgotlaTopic(
-      id: "3",
-      title: "Family Emergency & Bereavement Scheme (Mokotla wa Matshediso)",
+      id: "T3",
+      title: "Family Bereavement & Emergency Scheme (Mokotla wa Matshediso)",
       authorName: "Mme Mpho Makhetha",
       branch: "Lesotho Heritage Branch",
-      description:
-          "Formalizing transparent family contributions so bereaved households receive dignified financial and logistical support without panic.",
-      votes: 95,
+      description: "Formalizing emergency contributions so bereaved households receive immediate groceries and transport.",
+      likes: 88,
+      dislikes: 6,
+      isFinalised: false,
     ),
     KgotlaTopic(
-      id: "4",
-      title: "Makhetha Business Consortium & Agriculture Co-op",
+      id: "T4",
+      title: "Makhetha Commercial Cattle & Grain Agricultural Co-op",
       authorName: "Abuti Tumelo Makhetha",
       branch: "KZN Branch",
-      description:
-          "Collaborating on family agricultural land and giving first preference to clan contractors for building, transport, and catering.",
-      votes: 76,
+      description: "Collaborating on family agricultural land in Ficksburg and giving preference to clan contractors.",
+      likes: 72,
+      dislikes: 14,
+      isFinalised: false,
     ),
   ];
 
-  // Ticket Booking State
+  // In-App Ticket Selection State
   int _adultPasses = 1;
   int _youthPasses = 0;
   int _tShirts = 0;
   String _tShirtSize = "L (Large)";
 
-  final double _adultPrice = 450.0; // All meals, banquet pass, reunion package
-  final double _youthPrice = 200.0;
-  final double _tShirtPrice = 180.0;
-
-  double get _totalBookingAmount =>
-      (_adultPasses * _adultPrice) +
-      (_youthPasses * _youthPrice) +
-      (_tShirts * _tShirtPrice);
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -109,159 +116,222 @@ class _ReunionKgotlaScreenState extends State<ReunionKgotlaScreen>
     }
   }
 
-  void _submitTicketOrder() {
-    final String msg = """
-🐊 *LEKGOTLA LA MAKHETHA REUNION 2027 BOOKING*
-Date: 24 September 2027 (Heritage Day Weekend)
----------------------------------
-🎟️ *Adult Clan Passes:* $_adultPasses (R ${(_adultPasses * _adultPrice).toStringAsFixed(2)})
-🎓 *Youth / Student Passes:* $_youthPasses (R ${(_youthPasses * _youthPrice).toStringAsFixed(2)})
-👕 *Clan Heritage T-Shirts:* $_tShirts (Size: $_tShirtSize) (R ${(_tShirts * _tShirtPrice).toStringAsFixed(2)})
----------------------------------
-💵 *Total Contribution Amount:* R ${_totalBookingAmount.toStringAsFixed(2)}
+  // 📍 EXPORT / DOWNLOAD FINALISED AGENDA
+  void _exportFinalisedAgenda(List<KgotlaTopic> finalised) {
+    final buffer = StringBuffer();
+    buffer.writeln("🐊 *LEKGOTLA LA MAKHETHA • FINALISED REUNION 2027 AGENDA*");
+    buffer.writeln("Location: ${ClanSettingsService().reunionLocation}");
+    buffer.writeln("Date: 24 September 2027 (Heritage Day Weekend)");
+    buffer.writeln("----------------------------------------------");
+    buffer.writeln("The following topics were adopted by family vote & elders council:\n");
 
-Please send me the official banking details and reference code for our household booking!
-""";
+    for (int i = 0; i < finalised.length; i++) {
+      final t = finalised[i];
+      buffer.writeln("${i + 1}. *${t.title}*");
+      buffer.writeln("   Proposed by: ${t.authorName} (${t.branch})");
+      buffer.writeln("   Family Approval: +${t.netScore} net votes (👍 ${t.likes} | 👎 ${t.dislikes})");
+      buffer.writeln("   Summary: ${t.description}\n");
+    }
 
-    const String treasuryPhone = "27821234567"; // Reunion Committee WhatsApp
-    _launchExternal("https://wa.me/$treasuryPhone?text=${Uri.encodeComponent(msg)}");
+    buffer.writeln("Official document issued by Lekgotla la Baholo.");
+
+    Clipboard.setData(ClipboardData(text: buffer.toString()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("✅ Finalised Agenda copied to clipboard! Opening WhatsApp to share..."),
+        backgroundColor: Color(0xFF16A34A),
+      ),
+    );
+
+    const String councilPhone = "27821234567";
+    _launchExternal("https://wa.me/$councilPhone?text=${Uri.encodeComponent(buffer.toString())}");
   }
 
-  void _showSubmitTopicModal(
-    BuildContext context, {
-    required Color cardColor,
-    required Color borderColor,
-    required Color brandColor,
-    required Color onSurfaceColor,
-    required bool isDark,
-  }) {
-    final titleC = TextEditingController();
-    final nameC = TextEditingController();
-    final branchC = TextEditingController(text: "Gauteng Branch");
-    final descC = TextEditingController();
+  // 📍 IN-APP TICKET PAYMENT FLOW (WITH AUTH & DIGITAL TICKET GENERATION)
+  void _executeInAppTicketPurchase(double totalAmount) {
+    ClanAuthService.requireAuthentication(
+      context,
+      actionName: "purchase reunion passes",
+      onAuthenticated: () {
+        final user = ClanAuthService().currentUser!;
+        final String ticketCode = "TKT-2027-PE-${Random().nextInt(90000) + 10000}";
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: borderColor),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.how_to_vote_rounded, color: brandColor, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              "Table an Agenda Topic",
-              style: TextStyle(color: onSurfaceColor, fontSize: 16, fontWeight: FontWeight.bold),
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Theme.of(context).cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.confirmation_number_rounded, color: Color(0xFF10B981), size: 24),
+                SizedBox(width: 8),
+                Text("Confirm In-App Payment"),
+              ],
             ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Submit an issue, proposal, or family question to be discussed by the Elders Council at the 2027 Kgotla.",
-                style: TextStyle(color: onSurfaceColor.withOpacity(0.7), fontSize: 11.5),
-              ),
-              const SizedBox(height: 14),
-
-              TextField(
-                controller: titleC,
-                style: TextStyle(color: onSurfaceColor, fontSize: 13),
-                decoration: _inputDecor("Topic Title (e.g. Family Bursary Trust) *", onSurfaceColor, borderColor, isDark),
-              ),
-              const SizedBox(height: 10),
-
-              TextField(
-                controller: nameC,
-                style: TextStyle(color: onSurfaceColor, fontSize: 13),
-                decoration: _inputDecor("Your Name (or Household Rep) *", onSurfaceColor, borderColor, isDark),
-              ),
-              const SizedBox(height: 10),
-
-              TextField(
-                controller: branchC,
-                style: TextStyle(color: onSurfaceColor, fontSize: 13),
-                decoration: _inputDecor("Your Family Branch *", onSurfaceColor, borderColor, isDark),
-              ),
-              const SizedBox(height: 10),
-
-              TextField(
-                controller: descC,
-                maxLines: 3,
-                style: TextStyle(color: onSurfaceColor, fontSize: 13),
-                decoration: _inputDecor("Explain why this matter should be tabled *", onSurfaceColor, borderColor, isDark),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Member: ${user.fullName} (${user.branch})", style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text("WhatsApp: ${user.phone}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const Divider(height: 20),
+                Text("Adult Passes: $_adultPasses"),
+                Text("Youth Passes: $_youthPasses"),
+                if (_tShirts > 0) Text("Clan T-Shirts: $_tShirts (Size: $_tShirtSize)"),
+                const SizedBox(height: 8),
+                Text("Total to Pay: R ${totalAmount.toStringAsFixed(2)}",
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF10B981))),
+                const SizedBox(height: 12),
+                const Text("Payment Method: Instant EFT / SafeTrade Clan Escrow", style: TextStyle(fontSize: 11.5, color: Colors.grey)),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _showIssuedTicketDialog(ticketCode, user, totalAmount);
+                },
+                child: const Text("Authorize Payment"),
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _showIssuedTicketDialog(String ticketCode, ClanMemberUser user, double totalAmount) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111827),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: const BorderSide(color: Color(0xFFF59E0B))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 48),
+            const SizedBox(height: 10),
+            Text("TICKET ISSUED SUCCESSFULLY",
+                style: GoogleFonts.montserrat(color: const Color(0xFFF59E0B), fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+            const SizedBox(height: 4),
+            Text("Reunion 2027 • Port Elizabeth", style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            const Divider(color: Colors.white24, height: 24),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(12)),
+              child: Column(
+                children: [
+                  const Text("DIGITAL PASS QR CODE", style: TextStyle(fontSize: 10, color: Colors.white60, letterSpacing: 1)),
+                  const SizedBox(height: 8),
+                  const Icon(Icons.qr_code_2_rounded, size: 100, color: Colors.white),
+                  const SizedBox(height: 8),
+                  Text(ticketCode, style: GoogleFonts.montserrat(color: const Color(0xFFFDE68A), fontWeight: FontWeight.w900, fontSize: 14)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text("Pass Holder: ${user.fullName} (${user.branch})", style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            Text("Total Paid: R ${totalAmount.toStringAsFixed(2)}", style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+          ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text("Cancel", style: TextStyle(color: onSurfaceColor.withOpacity(0.6))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: brandColor,
-              foregroundColor: isDark ? Colors.black : Colors.white,
-            ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Done", style: TextStyle(color: Colors.white60))),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
             onPressed: () {
-              if (titleC.text.isNotEmpty && nameC.text.isNotEmpty) {
-                setState(() {
-                  _tabledTopics.insert(
-                    0,
-                    KgotlaTopic(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      title: titleC.text.trim(),
-                      authorName: nameC.text.trim(),
-                      branch: branchC.text.trim(),
-                      description: descC.text.trim(),
-                      votes: 1,
-                      hasVoted: true,
-                    ),
-                  );
-                });
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("✅ Topic submitted to the Kgotla floor for voting!"),
-                    backgroundColor: Color(0xFF16A34A),
-                  ),
-                );
-              }
+              Navigator.pop(ctx);
+              final receipt = """
+🐊 *LEKGOTLA LA MAKHETHA • DIGITAL PASS RECEIPT*
+Ticket Pass: *$ticketCode*
+Member: ${user.fullName} (${user.branch})
+Location: ${ClanSettingsService().reunionLocation}
+Date: 24 September 2027
+Total: R ${totalAmount.toStringAsFixed(2)}
+---------------------------------
+Status: VERIFIED & PAID IN-APP
+""";
+              _launchExternal("https://wa.me/${user.phone}?text=${Uri.encodeComponent(receipt)}");
             },
-            child: const Text("Table Topic"),
+            icon: const Icon(Icons.share, size: 16),
+            label: const Text("Share Receipt on WhatsApp"),
           ),
         ],
       ),
     );
   }
 
-  InputDecoration _inputDecor(String label, Color onSurfaceColor, Color borderColor, bool isDark) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: onSurfaceColor.withOpacity(0.65), fontSize: 12),
-      filled: true,
-      fillColor: isDark ? const Color(0xFF0B1120) : Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: borderColor),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: borderColor),
-      ),
+  void _showSubmitTopicModal(BuildContext context) {
+    ClanAuthService.requireAuthentication(
+      context,
+      actionName: "table a topic for discussion",
+      onAuthenticated: () {
+        final titleC = TextEditingController();
+        final descC = TextEditingController();
+        final user = ClanAuthService().currentUser!;
+
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Theme.of(context).cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("Propose an Agenda Topic"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text("Author: ${user.fullName} (${user.branch})", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleC,
+                  decoration: const InputDecoration(labelText: "Proposal Title *", border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descC,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: "Description & Motivation *", border: OutlineInputBorder()),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+              ElevatedButton(
+                onPressed: () {
+                  if (titleC.text.isNotEmpty && descC.text.isNotEmpty) {
+                    setState(() {
+                      _allTopics.insert(
+                        0,
+                        KgotlaTopic(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          title: titleC.text.trim(),
+                          authorName: user.fullName,
+                          branch: user.branch,
+                          description: descC.text.trim(),
+                          likes: 1,
+                          dislikes: 0,
+                          userVote: 'like',
+                          isFinalised: false,
+                        ),
+                      );
+                    });
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("✅ Topic submitted to the Proposal floor for voting!"), backgroundColor: Color(0xFF16A34A)),
+                    );
+                  }
+                },
+                child: const Text("Submit Proposal"),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🎨 DYNAMIC THEME ACCESS
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final brandColor = theme.colorScheme.primary;
@@ -269,55 +339,75 @@ Please send me the official banking details and reference code for our household
     final cardColor = theme.cardColor;
     final borderColor = theme.dividerColor;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        elevation: 0,
-        title: Text(
-          "REUNION 2027 & KGOTLA FLOOR",
-          style: GoogleFonts.montserrat(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
-            color: onSurfaceColor,
+    final proposals = _allTopics.where((t) => !t.isFinalised).toList()
+      ..sort((a, b) => b.netScore.compareTo(a.netScore));
+
+    final finalised = _allTopics.where((t) => t.isFinalised).toList()
+      ..sort((a, b) => b.netScore.compareTo(a.netScore));
+
+    return AnimatedBuilder(
+      animation: ClanSettingsService(),
+      builder: (context, _) {
+        final settings = ClanSettingsService();
+        final double totalBooking = (_adultPasses * settings.adultTicketPrice) +
+            (_youthPasses * settings.youthTicketPrice) +
+            (_tShirts * settings.tShirtPrice);
+
+        return Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          appBar: AppBar(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            elevation: 0,
+            title: Text(
+              "REUNION 2027 & KGOTLA FLOOR",
+              style: GoogleFonts.montserrat(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+                color: onSurfaceColor,
+              ),
+            ),
+            centerTitle: true,
+            bottom: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              indicatorColor: brandColor,
+              indicatorWeight: 3,
+              labelColor: brandColor,
+              unselectedLabelColor: onSurfaceColor.withOpacity(0.6),
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              tabs: [
+                Tab(icon: const Icon(Icons.how_to_vote_rounded, size: 16), text: "Proposals (${proposals.length})"),
+                Tab(icon: const Icon(Icons.assignment_turned_in_rounded, size: 16), text: "Finalised Agenda (${finalised.length})"),
+                const Tab(icon: Icon(Icons.event_note_rounded, size: 16), text: "Program & Speakers"),
+                const Tab(icon: Icon(Icons.shopping_cart_checkout_rounded, size: 16), text: "Buy Passes & Attire"),
+              ],
+            ),
           ),
-        ),
-        centerTitle: true,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: brandColor,
-          indicatorWeight: 3,
-          labelColor: brandColor,
-          unselectedLabelColor: onSurfaceColor.withOpacity(0.6),
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
-          tabs: const [
-            Tab(icon: Icon(Icons.how_to_vote_rounded, size: 17), text: "Kgotla Topics"),
-            Tab(icon: Icon(Icons.event_note_rounded, size: 17), text: "Program & Speakers"),
-            Tab(icon: Icon(Icons.confirmation_number_rounded, size: 17), text: "Tickets & Attire"),
-          ],
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildTopicsVotingTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
-              _buildProgramSpeakersTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
-              _buildTicketBookingTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
-            ],
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildProposalsTab(proposals, cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+                  _buildFinalisedTab(finalised, cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+                  _buildProgramTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+                  _buildBuyTicketsTab(settings, totalBooking, cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   // ===========================================================================
-  // TAB 1: KGOTLA TOPICS & DEMOCRATIC VOTING
+  // 1. PROPOSALS TAB (LIKES VS DISLIKES VOTING)
   // ===========================================================================
-  Widget _buildTopicsVotingTab(
+  Widget _buildProposalsTab(
+    List<KgotlaTopic> proposals,
     Color cardColor,
     Color borderColor,
     Color brandColor,
@@ -325,141 +415,205 @@ Please send me the official banking details and reference code for our household
     bool isDark,
   ) {
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(16),
       children: [
-        // Action Banner
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: borderColor),
-            boxShadow: isDark
-                ? null
-                : [
-                    BoxShadow(
-                      color: brandColor.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    )
-                  ],
-          ),
+          decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderColor)),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: brandColor.withOpacity(0.12), shape: BoxShape.circle),
-                child: Icon(Icons.how_to_vote_rounded, color: brandColor, size: 20),
-              ),
+              Icon(Icons.thumbs_up_down_rounded, color: brandColor, size: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Democratic Kgotla Floor",
-                        style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 13)),
-                    Text("Upvote topics for the 2027 AGM agenda or table a new issue.",
-                        style: TextStyle(color: onSurfaceColor.withOpacity(0.65), fontSize: 11)),
+                    Text("Propose & Vote on Issues", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: onSurfaceColor)),
+                    Text("Rank topics using Likes vs. Dislikes. Top-approved items move to the Finalised Agenda.",
+                        style: TextStyle(fontSize: 11, color: onSurfaceColor.withOpacity(0.65))),
                   ],
                 ),
               ),
               ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: brandColor,
-                  foregroundColor: isDark ? Colors.black : Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                onPressed: () => _showSubmitTopicModal(
-                  context,
-                  cardColor: cardColor,
-                  borderColor: borderColor,
-                  brandColor: brandColor,
-                  onSurfaceColor: onSurfaceColor,
-                  isDark: isDark,
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: brandColor, foregroundColor: isDark ? Colors.black : Colors.white),
+                onPressed: () => _showSubmitTopicModal(context),
                 icon: const Icon(Icons.add, size: 15),
-                label: const Text("Table Topic", style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                label: const Text("Propose"),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
+        ...proposals.map((topic) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderColor)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(topic.title, style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 14, color: onSurfaceColor)),
+                          Text("Proposed by ${topic.authorName} • ${topic.branch}",
+                              style: TextStyle(fontSize: 11, color: brandColor, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    // Net Approval Pill
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (topic.netScore >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        "Net: ${topic.netScore >= 0 ? '+' : ''}${topic.netScore}",
+                        style: TextStyle(
+                          color: topic.netScore >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(topic.description, style: TextStyle(fontSize: 12, color: onSurfaceColor.withOpacity(0.75), height: 1.4)),
+                const Divider(height: 20),
+                // Like vs Dislike Row
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        topic.userVote == 'like' ? Icons.thumb_up_alt_rounded : Icons.thumb_up_alt_outlined,
+                        color: topic.userVote == 'like' ? const Color(0xFF10B981) : onSurfaceColor.withOpacity(0.5),
+                        size: 18,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          if (topic.userVote == 'like') {
+                            topic.likes--;
+                            topic.userVote = null;
+                          } else {
+                            if (topic.userVote == 'dislike') topic.dislikes--;
+                            topic.likes++;
+                            topic.userVote = 'like';
+                          }
+                        });
+                      },
+                    ),
+                    Text("${topic.likes}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      icon: Icon(
+                        topic.userVote == 'dislike' ? Icons.thumb_down_alt_rounded : Icons.thumb_down_alt_outlined,
+                        color: topic.userVote == 'dislike' ? const Color(0xFFEF4444) : onSurfaceColor.withOpacity(0.5),
+                        size: 18,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          if (topic.userVote == 'dislike') {
+                            topic.dislikes--;
+                            topic.userVote = null;
+                          } else {
+                            if (topic.userVote == 'like') topic.likes--;
+                            topic.dislikes++;
+                            topic.userVote = 'dislike';
+                          }
+                        });
+                      },
+                    ),
+                    Text("${topic.dislikes}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
 
-        Text(
-          "PROPOSED ISSUES RANKED BY FAMILY VOTES",
-          style: TextStyle(color: brandColor, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1),
+  // ===========================================================================
+  // 2. FINALISED AGENDA (READY FOR DISCUSSION & EXPORT)
+  // ===========================================================================
+  Widget _buildFinalisedTab(
+    List<KgotlaTopic> finalised,
+    Color cardColor,
+    Color borderColor,
+    Color brandColor,
+    Color onSurfaceColor,
+    bool isDark,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: isDark
+                ? const LinearGradient(colors: [Color(0xFF0F1E36), Color(0xFF1E2A5E)])
+                : const LinearGradient(colors: [Color(0xFF451A03), Color(0xFF78350F)]),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("COUNCIL ADOPTED AGENDA", style: TextStyle(color: Color(0xFFFDE68A), fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
+              const SizedBox(height: 6),
+              Text("Official Discussion Items for Port Elizabeth 2027",
+                  style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 4),
+              const Text("These proposals gained overwhelming family consensus and are ratified for deliberation.",
+                  style: TextStyle(color: Colors.white70, fontSize: 11.5)),
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.black),
+                onPressed: () => _exportFinalisedAgenda(finalised),
+                icon: const Icon(Icons.share_rounded, size: 16),
+                label: const Text("Download / Share Agenda on WhatsApp", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 16),
+        ...finalised.asMap().entries.map((entry) {
+          final int index = entry.key;
+          final KgotlaTopic topic = entry.value;
 
-        ..._tabledTopics.map((topic) {
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor),
+              border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Upvote Counter Column
-                Column(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        topic.hasVoted ? Icons.thumb_up_alt_rounded : Icons.thumb_up_alt_outlined,
-                        color: topic.hasVoted ? brandColor : onSurfaceColor.withOpacity(0.5),
-                        size: 22,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          if (topic.hasVoted) {
-                            topic.votes--;
-                            topic.hasVoted = false;
-                          } else {
-                            topic.votes++;
-                            topic.hasVoted = true;
-                          }
-                        });
-                      },
-                    ),
-                    Text(
-                      "${topic.votes}",
-                      style: TextStyle(
-                        color: topic.hasVoted ? brandColor : onSurfaceColor,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13,
-                      ),
-                    ),
-                    Text("votes", style: TextStyle(color: onSurfaceColor.withOpacity(0.5), fontSize: 9.5)),
-                  ],
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: const Color(0xFF10B981),
+                  child: Text("${index + 1}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
                 ),
                 const SizedBox(width: 12),
-
-                // Topic Details
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        topic.title,
-                        style: GoogleFonts.montserrat(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13.5,
-                          color: onSurfaceColor,
-                        ),
-                      ),
+                      Text(topic.title, style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 13.5, color: onSurfaceColor)),
                       const SizedBox(height: 2),
-                      Text(
-                        "Proposed by ${topic.authorName} • ${topic.branch}",
-                        style: TextStyle(fontSize: 11, color: brandColor, fontWeight: FontWeight.w600),
-                      ),
+                      Text("Proposed by ${topic.authorName} (${topic.branch}) • 👍 ${topic.likes} votes",
+                          style: TextStyle(fontSize: 11, color: brandColor, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 6),
-                      Text(
-                        topic.description,
-                        style: TextStyle(color: onSurfaceColor.withOpacity(0.7), fontSize: 12, height: 1.4),
-                      ),
+                      Text(topic.description, style: TextStyle(fontSize: 12, color: onSurfaceColor.withOpacity(0.72), height: 1.4)),
                     ],
                   ),
                 ),
@@ -472,88 +626,42 @@ Please send me the official banking details and reference code for our household
   }
 
   // ===========================================================================
-  // TAB 2: ITINERARY & KEYNOTE SPEAKERS
+  // 3. PROGRAM & SPEAKERS TAB
   // ===========================================================================
-  Widget _buildProgramSpeakersTab(
-    Color cardColor,
-    Color borderColor,
-    Color brandColor,
-    Color onSurfaceColor,
-    bool isDark,
-  ) {
+  Widget _buildProgramTab(Color cardColor, Color borderColor, Color brandColor, Color onSurfaceColor, bool isDark) {
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(16),
       children: [
-        _dayProgramBlock(
-          day: "DAY 1 • FRIDAY, 24 SEPTEMBER 2027",
-          title: "Roots, Arrival & Ancestral Welcome",
-          cardColor: cardColor,
-          borderColor: borderColor,
-          brandColor: brandColor,
-          onSurfaceColor: onSurfaceColor,
-          items: [
-            "10:00 - 14:00: Arrival, Registration & Welcome Refreshments",
-            "14:30 - 16:30: Tour of Ancestral Grounds & Historical Gravesite Respects",
-            "17:30 - 19:30: Opening Ceremony & Cultural Welcome Feast (Kamogelo)",
-          ],
-        ),
-        const SizedBox(height: 14),
-
-        _dayProgramBlock(
-          day: "DAY 2 • SATURDAY, 25 SEPTEMBER 2027",
-          title: "The Grand Kgotla Assembly & Youth Forum",
-          cardColor: cardColor,
-          borderColor: borderColor,
-          brandColor: brandColor,
-          onSurfaceColor: onSurfaceColor,
-          items: [
-            "09:00 - 10:30: Morning Devotion & Thanksgiving Prayer",
-            "10:45 - 13:00: Main Kgotla AGM: Deliberation on Tabled Member Topics",
-            "13:00 - 14:30: Fellowship Lunch & Branch Photo Sessions",
-            "15:00 - 17:30: Makhetha Youth Career & Entrepreneurship Panel",
-            "18:30 - 21:00: Royal Clan Banquet & Traditional Music",
-          ],
-        ),
-        const SizedBox(height: 14),
-
-        _dayProgramBlock(
-          day: "DAY 3 • SUNDAY, 26 SEPTEMBER 2027",
-          title: "Resolutions, Feast & Safe Travels",
-          cardColor: cardColor,
-          borderColor: borderColor,
-          brandColor: brandColor,
-          onSurfaceColor: onSurfaceColor,
-          items: [
-            "09:30 - 11:30: Adoption of Resolutions & Election of Council Executives",
-            "12:00 - 14:30: Grand Braai & Farewell Fellowship (Tsela Tshweu)",
-          ],
-        ),
+        _programCard("DAY 1 • FRIDAY, 24 SEPTEMBER 2027", "Roots, Arrival & Ancestral Welcome", [
+          "10:00 - 14:00: Arrival & Registration at Nelson Mandela Bay Marquee",
+          "15:00 - 17:00: Historical Tour of Port Elizabeth Ancestral Sites",
+          "18:00 - 20:30: Traditional Cultural Welcome Feast (Kamogelo)",
+        ], cardColor, borderColor, brandColor, onSurfaceColor),
+        const SizedBox(height: 12),
+        _programCard("DAY 2 • SATURDAY, 25 SEPTEMBER 2027", "The Grand Kgotla Assembly & Youth Forum", [
+          "09:00 - 10:30: Morning Devotion & Thanksgiving Prayer",
+          "10:45 - 13:00: Deliberation of Finalised Agenda Topics",
+          "15:00 - 17:30: Youth Career & Entrepreneurship Panel",
+          "18:30 - 21:00: Royal Clan Banquet & Traditional Music",
+        ], cardColor, borderColor, brandColor, onSurfaceColor),
+        const SizedBox(height: 12),
+        _programCard("DAY 3 • SUNDAY, 26 SEPTEMBER 2027", "Resolutions, Feast & Safe Travels", [
+          "09:30 - 11:30: Adoption of Resolutions & Executive Nominations",
+          "12:00 - 15:00: Farewell Feast (Tsela Tshweu)",
+        ], cardColor, borderColor, brandColor, onSurfaceColor),
       ],
     );
   }
 
-  Widget _dayProgramBlock({
-    required String day,
-    required String title,
-    required List<String> items,
-    required Color cardColor,
-    required Color borderColor,
-    required Color brandColor,
-    required Color onSurfaceColor,
-  }) {
+  Widget _programCard(String day, String title, List<String> items, Color cardColor, Color borderColor, Color brandColor, Color onSurfaceColor) {
     return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-      ),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderColor)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(day, style: TextStyle(color: brandColor, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.8)),
-          const SizedBox(height: 4),
-          Text(title, style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 14.5)),
+          Text(day, style: TextStyle(color: brandColor, fontWeight: FontWeight.bold, fontSize: 11)),
+          Text(title, style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 14)),
           Divider(color: borderColor, height: 20),
           ...items.map((it) => Padding(
                 padding: const EdgeInsets.only(bottom: 6.0),
@@ -562,9 +670,7 @@ Please send me the official banking details and reference code for our household
                   children: [
                     Icon(Icons.check_circle_rounded, color: brandColor, size: 14),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(it, style: TextStyle(color: onSurfaceColor.withOpacity(0.75), fontSize: 12, height: 1.35)),
-                    ),
+                    Expanded(child: Text(it, style: TextStyle(color: onSurfaceColor.withOpacity(0.75), fontSize: 11.5))),
                   ],
                 ),
               )),
@@ -574,85 +680,40 @@ Please send me the official banking details and reference code for our household
   }
 
   // ===========================================================================
-  // TAB 3: TICKETS, BANQUET PASSES & CLAN ATTIRE
+  // 4. BUY TICKETS TAB (IN-APP PAYMENT + ADMIN-DYNAMIC PRICES)
   // ===========================================================================
-  Widget _buildTicketBookingTab(
-    Color cardColor,
-    Color borderColor,
-    Color brandColor,
-    Color onSurfaceColor,
-    bool isDark,
-  ) {
+  Widget _buildBuyTicketsTab(ClanSettingsService settings, double totalBooking, Color cardColor, Color borderColor, Color brandColor, Color onSurfaceColor, bool isDark) {
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(16),
       children: [
-        // Ticket Calculator Card
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: borderColor),
-          ),
+          decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(18), border: Border.all(color: borderColor)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "SELECT REUNION PASSES & PACKAGES",
-                style: TextStyle(color: brandColor, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                "Reserve Seats for Your Household",
-                style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.bold, color: onSurfaceColor),
-              ),
+              Text("IN-APP REUNION PASSES & PACKAGES", style: TextStyle(color: brandColor, fontWeight: FontWeight.bold, fontSize: 11)),
               const SizedBox(height: 4),
-              Text(
-                "Covers full weekend marquee, catering (all 3 days), banquet seating, and reunion program kit.",
-                style: TextStyle(color: onSurfaceColor.withOpacity(0.65), fontSize: 11.5),
-              ),
+              Text("Book Household Passes for Port Elizabeth 2027", style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.bold, color: onSurfaceColor)),
+              Text("Covers full weekend marquee, 3-day catering, and banquet access.", style: TextStyle(fontSize: 11.5, color: onSurfaceColor.withOpacity(0.65))),
               Divider(color: borderColor, height: 24),
 
-              // Adult Pass Counter
-              _counterRow(
-                title: "Adult Full Clan Pass (18+ yrs)",
-                price: "R ${_adultPrice.toStringAsFixed(0)} each",
-                count: _adultPasses,
-                onAdd: () => setState(() => _adultPasses++),
-                onRemove: () => setState(() {
-                  if (_adultPasses > 0) _adultPasses--;
-                }),
-                onSurfaceColor: onSurfaceColor,
-                brandColor: brandColor,
-              ),
+              // Dynamic Adult Pass
+              _ticketCounter("Adult Clan Pass (18+ yrs)", "R ${settings.adultTicketPrice.toStringAsFixed(0)}", _adultPasses, () => setState(() => _adultPasses++), () {
+                if (_adultPasses > 0) setState(() => _adultPasses--);
+              }, onSurfaceColor, brandColor),
               const SizedBox(height: 12),
 
-              // Youth Pass Counter
-              _counterRow(
-                title: "Youth / Student Pass (12 - 17 yrs)",
-                price: "R ${_youthPrice.toStringAsFixed(0)} each",
-                count: _youthPasses,
-                onAdd: () => setState(() => _youthPasses++),
-                onRemove: () => setState(() {
-                  if (_youthPasses > 0) _youthPasses--;
-                }),
-                onSurfaceColor: onSurfaceColor,
-                brandColor: brandColor,
-              ),
+              // Dynamic Youth Pass
+              _ticketCounter("Youth / Student Pass (12 - 17 yrs)", "R ${settings.youthTicketPrice.toStringAsFixed(0)}", _youthPasses, () => setState(() => _youthPasses++), () {
+                if (_youthPasses > 0) setState(() => _youthPasses--);
+              }, onSurfaceColor, brandColor),
               const SizedBox(height: 12),
 
-              // T-Shirt Counter
-              _counterRow(
-                title: "Official Makhetha Heritage T-Shirt",
-                price: "R ${_tShirtPrice.toStringAsFixed(0)} each",
-                count: _tShirts,
-                onAdd: () => setState(() => _tShirts++),
-                onRemove: () => setState(() {
-                  if (_tShirts > 0) _tShirts--;
-                }),
-                onSurfaceColor: onSurfaceColor,
-                brandColor: brandColor,
-              ),
+              // Dynamic T-Shirt
+              _ticketCounter("Official Heritage T-Shirt", "R ${settings.tShirtPrice.toStringAsFixed(0)}", _tShirts, () => setState(() => _tShirts++), () {
+                if (_tShirts > 0) setState(() => _tShirts--);
+              }, onSurfaceColor, brandColor),
 
               if (_tShirts > 0) ...[
                 const SizedBox(height: 10),
@@ -660,45 +721,31 @@ Please send me the official banking details and reference code for our household
                   value: _tShirtSize,
                   dropdownColor: cardColor,
                   style: TextStyle(color: onSurfaceColor, fontSize: 12),
-                  decoration: _inputDecor("Select Preferred T-Shirt Size", onSurfaceColor, borderColor, isDark),
-                  items: ["S (Small)", "M (Medium)", "L (Large)", "XL (Extra Large)", "2XL", "3XL"]
-                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                      .toList(),
+                  decoration: const InputDecoration(labelText: "T-Shirt Size", border: OutlineInputBorder()),
+                  items: ["S", "M", "L", "XL", "2XL", "3XL"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                   onChanged: (v) => setState(() => _tShirtSize = v!),
                 ),
               ],
               Divider(color: borderColor, height: 24),
 
-              // Total Calculation Row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Total Contribution:",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: onSurfaceColor)),
-                  Text(
-                    "R ${_totalBookingAmount.toStringAsFixed(2)}",
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: brandColor),
-                  ),
+                  const Text("Total Payable:", style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text("R ${totalBooking.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: brandColor)),
                 ],
               ),
               const SizedBox(height: 16),
 
-              // Action Button
+              // 📍 IN-APP CHECKOUT BUTTON
               SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF16A34A),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: _totalBookingAmount > 0 ? _submitTicketOrder : null,
-                  icon: const Icon(Icons.confirmation_number_rounded, size: 16),
-                  label: const Text(
-                    "Submit Booking via WhatsApp to Treasury",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+                  onPressed: totalBooking > 0 ? () => _executeInAppTicketPurchase(totalBooking) : null,
+                  icon: const Icon(Icons.payment_rounded, size: 18),
+                  label: const Text("Pay & Generate Ticket In-App", style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -708,15 +755,7 @@ Please send me the official banking details and reference code for our household
     );
   }
 
-  Widget _counterRow({
-    required String title,
-    required String price,
-    required int count,
-    required VoidCallback onAdd,
-    required VoidCallback onRemove,
-    required Color onSurfaceColor,
-    required Color brandColor,
-  }) {
+  Widget _ticketCounter(String title, String price, int count, VoidCallback onAdd, VoidCallback onRemove, Color onSurfaceColor, Color brandColor) {
     return Row(
       children: [
         Expanded(
@@ -724,20 +763,13 @@ Please send me the official banking details and reference code for our household
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: onSurfaceColor)),
-              Text(price, style: TextStyle(fontSize: 11, color: brandColor, fontWeight: FontWeight.w600)),
+              Text(price, style: TextStyle(fontSize: 11, color: brandColor, fontWeight: FontWeight.bold)),
             ],
           ),
         ),
-        IconButton(
-          icon: const Icon(Icons.remove_circle_outline_rounded, size: 20),
-          onPressed: onRemove,
-          color: onSurfaceColor.withOpacity(0.6),
-        ),
+        IconButton(icon: const Icon(Icons.remove_circle_outline, size: 20), onPressed: onRemove),
         Text("$count", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: onSurfaceColor)),
-        IconButton(
-          icon: Icon(Icons.add_circle_outline_rounded, size: 20, color: brandColor),
-          onPressed: onAdd,
-        ),
+        IconButton(icon: Icon(Icons.add_circle_outline, size: 20, color: brandColor), onPressed: onAdd),
       ],
     );
   }

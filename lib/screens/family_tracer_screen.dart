@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lekgotla_la_makhetha/screens/makhetha_history_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class FamilyTracerNotice {
@@ -629,6 +630,29 @@ I believe our branch has valuable lineage information or connection to share.
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton.icon(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: brandColor,
+      foregroundColor: isDark ? Colors.black : Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MakhethaHistoryScreen()),
+      );
+    },
+    icon: const Icon(Icons.menu_book_rounded, size: 16),
+    label: const Text(
+      "Read Full History: The House of Makhetha & ’Mantsopa 📖",
+      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+    ),
+  ),
+),
               const SizedBox(height: 16),
               Text(
                 "Historical Lineage Overview",

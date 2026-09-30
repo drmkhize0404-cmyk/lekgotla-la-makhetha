@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lekgotla_la_makhetha/services/clan_settings_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/clan_settings_service.dart';
 
 class ClanAdminDashboardScreen extends StatefulWidget {
   const ClanAdminDashboardScreen({super.key});
@@ -18,133 +18,92 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
 
   late TabController _tabController;
 
-
-  void _showEditReunionHostModal(BuildContext context) {
-    final settings = ClanSettingsService();
-    final locC = TextEditingController(text: settings.reunionLocation);
-    final hostC = TextEditingController(text: settings.reunionHostBranch);
-    final venueC = TextEditingController(text: settings.reunionVenue);
-    final themeC = TextEditingController(text: settings.reunionTheme);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text("Update Reunion Host & Location"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: locC,
-                decoration: const InputDecoration(labelText: "Upcoming Location (e.g. Port Elizabeth)", border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: hostC,
-                decoration: const InputDecoration(labelText: "Hosting Branch (e.g. Eastern Cape Branch)", border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: venueC,
-                decoration: const InputDecoration(labelText: "Venue / Ground Name", border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: themeC,
-                decoration: const InputDecoration(labelText: "Reunion Theme / Slogan", border: OutlineInputBorder()),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              await settings.updateReunionInfo(
-                location: locC.text.trim(),
-                hostBranch: hostC.text.trim(),
-                venue: venueC.text.trim(),
-                theme: themeC.text.trim(),
-                date: settings.reunionDate,
-              );
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("✅ Reunion host & location updated app-wide!")),
-                );
-              }
-            },
-            child: const Text("Save & Publish"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Mock Moderation Items
-  final List<Map<String, dynamic>> _pendingTopics = [
+  // Tabled Kgotla Topics (Admin Moderation)
+  final List<Map<String, dynamic>> _adminTopics = [
     {
       "id": "T1",
-      "title": "Establishment of the Makhetha Youth Education & Bursary Fund",
+      "title": "Establishment of the Makhetha Higher Education Bursary Trust",
       "author": "Ausi Refiloe (Gauteng)",
-      "votes": 142,
-      "isApproved": true,
+      "likes": 156,
+      "dislikes": 4,
+      "isFinalised": true,
     },
     {
       "id": "T2",
       "title": "Digital Archiving of Clan Praise Poems (Lithoko) & Lineage Tree",
       "author": "Ntate Sello (Free State)",
-      "votes": 118,
-      "isApproved": true,
+      "likes": 124,
+      "dislikes": 2,
+      "isFinalised": true,
     },
     {
       "id": "T3",
-      "title": "Establishment of Makhetha Commercial Cattle & Grain Co-op",
+      "title": "Family Bereavement & Emergency Scheme (Mokotla wa Matshediso)",
+      "author": "Mme Mpho (Lesotho)",
+      "likes": 88,
+      "dislikes": 6,
+      "isFinalised": false,
+    },
+    {
+      "id": "T4",
+      "title": "Makhetha Commercial Cattle & Grain Agricultural Co-op",
       "author": "Abuti Tumelo (KZN)",
-      "votes": 76,
-      "isApproved": false,
+      "likes": 72,
+      "dislikes": 14,
+      "isFinalised": false,
     },
   ];
 
-  final List<Map<String, dynamic>> _pendingBusinesses = [
+  // Family Artisans & Professionals (Verification Desk)
+  final List<Map<String, dynamic>> _adminProfessionals = [
     {
-      "id": "B1",
-      "business": "Midlands Faith Plumbing & Leak Detection",
-      "owner": "Bro. S. Mkhize (KZN)",
-      "trade": "Plumbing & Drainage (Red Seal)",
+      "id": "P1",
+      "name": "Ntate Sello Makhetha",
+      "profession": "Master Electrician & Solar Installer",
+      "branch": "KZN Branch",
+      "isVolunteer": false,
       "isEndorsed": true,
     },
     {
-      "id": "B2",
-      "business": "Northdale Auto Electrical & Diagnostics",
-      "owner": "Bro. D. Govender (KZN)",
-      "trade": "Auto Diagnostics & Solar",
+      "id": "P2",
+      "name": "Adv. Tebogo Makhetha",
+      "profession": "High Court Advocate & Legal Consultant",
+      "branch": "Gauteng Branch",
+      "isVolunteer": true,
       "isEndorsed": true,
     },
     {
-      "id": "B3",
-      "business": "Lesotho Heritage Organic Wool & Honey",
-      "owner": "Mme Mpho Makhetha (Maseru)",
-      "trade": "Agriculture & Export",
+      "id": "P3",
+      "name": "Dr. Mamello Makhetha",
+      "profession": "General Medical Practitioner",
+      "branch": "Free State Branch",
+      "isVolunteer": true,
+      "isEndorsed": true,
+    },
+    {
+      "id": "P4",
+      "name": "Ausi Keketso Makhetha (CA)",
+      "profession": "Tax & Accounting Consultant",
+      "branch": "Lesotho Heritage Branch",
+      "isVolunteer": false,
       "isEndorsed": false,
     },
   ];
 
-  final List<Map<String, dynamic>> _crisisCases = [
+  // Safe Haven Crisis Tokens (Bo-Rakgadi Triage)
+  final List<Map<String, dynamic>> _crisisTokens = [
     {
       "token": "MK-SAFE-8412",
       "category": "Domestic Distress & Gender-Based Violence",
       "urgency": "Urgent (Within 24 Hours)",
-      "advocate": "Bo-Rakgadi Circle",
+      "assigned": "Bo-Rakgadi Aunts Circle",
       "status": "Elder Assigned • Shelter Coordinated",
     },
     {
       "token": "MK-SAFE-9218",
       "category": "Elderly Exploitation or Abandonment",
-      "urgency": "Review & Visit Needed",
-      "advocate": "Neutral Lekgotla Elder",
+      "urgency": "Review & Home Visit Needed",
+      "assigned": "Neutral Lekgotla Elder",
       "status": "Inquiry Underway",
     },
   ];
@@ -163,7 +122,7 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
   }
 
   void _verifyCouncilPin() {
-    // Default Council PIN: 2027 (Heritage Day Reunion year)
+    // Default Council PIN: 2027 (Matches the Reunion year)
     if (_pinController.text.trim() == "2027") {
       setState(() => _isAuthenticated = true);
     } else {
@@ -185,6 +144,168 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
     }
   }
 
+  // 📍 1. ADMIN UPDATES REUNION LOCATION & HOST BRANCH
+  void _showEditReunionHostModal(BuildContext context) {
+    final settings = ClanSettingsService();
+    final locC = TextEditingController(text: settings.reunionLocation);
+    final hostC = TextEditingController(text: settings.reunionHostBranch);
+    final venueC = TextEditingController(text: settings.reunionVenue);
+    final themeC = TextEditingController(text: settings.reunionTheme);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            Icon(Icons.location_city_rounded, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 10),
+            const Text("Update Host & Location", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Update the upcoming reunion hosting details. Changes apply app-wide in real time.",
+                style: TextStyle(fontSize: 11.5, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: locC,
+                decoration: const InputDecoration(labelText: "Reunion Location *", hintText: "e.g. Gqeberha (Port Elizabeth)", border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: hostC,
+                decoration: const InputDecoration(labelText: "Hosting Branch *", hintText: "e.g. Eastern Cape Host Branch", border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: venueC,
+                decoration: const InputDecoration(labelText: "Venue / Ground *", hintText: "e.g. Nelson Mandela Bay Marquee", border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: themeC,
+                decoration: const InputDecoration(labelText: "Theme / Slogan", hintText: "e.g. Kopano ya Lelapa", border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+            ),
+            onPressed: () async {
+              if (locC.text.isNotEmpty && hostC.text.isNotEmpty) {
+                await settings.updateReunionInfo(
+                  location: locC.text.trim(),
+                  hostBranch: hostC.text.trim(),
+                  venue: venueC.text.trim(),
+                  theme: themeC.text.trim(),
+                  date: settings.reunionDate,
+                );
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("✅ Reunion host and location updated app-wide!"), backgroundColor: Color(0xFF16A34A)),
+                  );
+                }
+              }
+            },
+            child: const Text("Save & Publish"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 📍 2. ADMIN CONFIGURES IN-APP TICKET PRICES
+  void _showEditTicketPricesDialog(BuildContext context) {
+    final settings = ClanSettingsService();
+    final adultC = TextEditingController(text: settings.adultTicketPrice.toStringAsFixed(0));
+    final youthC = TextEditingController(text: settings.youthTicketPrice.toStringAsFixed(0));
+    final tshirtC = TextEditingController(text: settings.tShirtPrice.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            Icon(Icons.price_change_rounded, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 10),
+            const Text("Set Reunion Ticket Prices", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "These prices are automatically charged inside the app when relatives book passes.",
+                style: TextStyle(fontSize: 11.5, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: adultC,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Adult Clan Pass (ZAR) *", prefixText: "R ", border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: youthC,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Youth / Student Pass (ZAR) *", prefixText: "R ", border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: tshirtC,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Official Heritage T-Shirt (ZAR) *", prefixText: "R ", border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+            ),
+            onPressed: () async {
+              final aPrice = double.tryParse(adultC.text.trim()) ?? settings.adultTicketPrice;
+              final yPrice = double.tryParse(youthC.text.trim()) ?? settings.youthTicketPrice;
+              final tPrice = double.tryParse(tshirtC.text.trim()) ?? settings.tShirtPrice;
+
+              await settings.updateTicketPrices(
+                adultPrice: aPrice,
+                youthPrice: yPrice,
+                tshirtPrice: tPrice,
+              );
+
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ Reunion ticket prices updated app-wide!"), backgroundColor: Color(0xFF16A34A)),
+                );
+              }
+            },
+            child: const Text("Save Prices"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -198,64 +319,71 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
       return _buildPinGateScreen(theme, cardColor, borderColor, brandColor, onSurfaceColor, isDark);
     }
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        elevation: 0,
-        title: Text(
-          "LEKGOTLA LA BAHOLO • COUNCIL DESK",
-          style: GoogleFonts.montserrat(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.1,
-            color: onSurfaceColor,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.logout_rounded, color: onSurfaceColor.withOpacity(0.6)),
-            tooltip: "Lock Council Portal",
-            onPressed: () => setState(() {
-              _isAuthenticated = false;
-              _pinController.clear();
-            }),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          indicatorColor: brandColor,
-          labelColor: brandColor,
-          unselectedLabelColor: onSurfaceColor.withOpacity(0.6),
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5),
-          tabs: const [
-            Tab(icon: Icon(Icons.speed_rounded, size: 17), text: "Clan Pulse"),
-            Tab(icon: Icon(Icons.how_to_vote_rounded, size: 17), text: "Kgotla Agenda"),
-            Tab(icon: Icon(Icons.verified_rounded, size: 17), text: "Verify Trades"),
-            Tab(icon: Icon(Icons.shield_rounded, size: 17), text: "Crisis Triage"),
-          ],
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildPulseTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
-              _buildAgendaModerationTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
-              _buildTradesVerificationTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
-              _buildCrisisTriageTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+    return AnimatedBuilder(
+      animation: ClanSettingsService(),
+      builder: (context, _) {
+        final settings = ClanSettingsService();
+
+        return Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          appBar: AppBar(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            elevation: 0,
+            title: Text(
+              "LEKGOTLA LA BAHOLO • COUNCIL DESK",
+              style: GoogleFonts.montserrat(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.1,
+                color: onSurfaceColor,
+              ),
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.logout_rounded, color: onSurfaceColor.withOpacity(0.6)),
+                tooltip: "Lock Council Portal",
+                onPressed: () => setState(() {
+                  _isAuthenticated = false;
+                  _pinController.clear();
+                }),
+              ),
             ],
+            bottom: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              indicatorColor: brandColor,
+              labelColor: brandColor,
+              unselectedLabelColor: onSurfaceColor.withOpacity(0.6),
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              tabs: const [
+                Tab(icon: Icon(Icons.speed_rounded, size: 16), text: "Pulse & Logistics"),
+                Tab(icon: Icon(Icons.how_to_vote_rounded, size: 16), text: "Agenda Moderation"),
+                Tab(icon: Icon(Icons.verified_rounded, size: 16), text: "Verify Trades"),
+                Tab(icon: Icon(Icons.shield_rounded, size: 16), text: "Crisis Triage"),
+              ],
+            ),
           ),
-        ),
-      ),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 950),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildPulseTab(settings, cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+                  _buildAgendaModerationTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+                  _buildTradesVerificationTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+                  _buildCrisisTriageTab(cardColor, borderColor, brandColor, onSurfaceColor, isDark),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
   // ===========================================================================
-  // COUNCIL PASSCODE GATE
+  // PIN PASSCODE GATE SCREEN (DEFAULT: 2027)
   // ===========================================================================
   Widget _buildPinGateScreen(
     ThemeData theme,
@@ -365,9 +493,10 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
   }
 
   // ===========================================================================
-  // TAB 1: CLAN PULSE & METRICS
+  // TAB 1: CLAN PULSE & LOGISTICS CONTROLLER
   // ===========================================================================
   Widget _buildPulseTab(
+    ClanSettingsService settings,
     Color cardColor,
     Color borderColor,
     Color brandColor,
@@ -378,70 +507,83 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
       padding: const EdgeInsets.all(20),
       children: [
         Text(
-          "CLAN PULSE & DEMOGRAPHICS",
+          "CLAN PULSE & REUNION LOGISTICS",
           style: TextStyle(color: brandColor, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.1),
         ),
         const SizedBox(height: 4),
-        Text("Global Makhetha Family Overview",
-            style: GoogleFonts.montserrat(fontSize: 20, fontWeight: FontWeight.bold, color: onSurfaceColor)),
-        const SizedBox(height: 16),
+        Text("Active Gathering Status",
+            style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: onSurfaceColor)),
+        const SizedBox(height: 14),
 
-        GridView.count(
-          crossAxisCount: MediaQuery.of(context).size.width > 700 ? 4 : 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.35,
-          children: [
-            _statMetricCard("Connected Households", "184 Families", Icons.family_restroom_rounded, brandColor, cardColor, borderColor, onSurfaceColor),
-            _statMetricCard("Reunion 2027 Target", "62% Raised", Icons.celebration_rounded, const Color(0xFF10B981), cardColor, borderColor, onSurfaceColor),
-            _statMetricCard("Active Escrow Volume", "R 3,200 Locked", Icons.shield_rounded, const Color(0xFF3B82F6), cardColor, borderColor, onSurfaceColor),
-            _statMetricCard("Active Crisis Reports", "${_crisisCases.length} In Progress", Icons.gpp_maybe_rounded, const Color(0xFFEF4444), cardColor, borderColor, onSurfaceColor),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // Elder Council Quick Actions
+        // Live Reunion Info Card (Shows Port Elizabeth)
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: cardColor,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: borderColor),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Council Executive Directives",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: onSurfaceColor)),
-              Divider(color: borderColor, height: 20),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
+              Row(
                 children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: brandColor, foregroundColor: isDark ? Colors.black : Colors.white),
-                    onPressed: () => _tabController.animateTo(1),
-                    icon: const Icon(Icons.how_to_vote_rounded, size: 16),
-                    label: const Text("Moderate Agenda Topics"),
-                  ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(foregroundColor: onSurfaceColor, side: BorderSide(color: borderColor)),
-                    onPressed: () => _tabController.animateTo(2),
-                    icon: const Icon(Icons.verified_rounded, size: 16),
-                    label: const Text("Review Trade Listings"),
-                  ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFEF4444), side: const BorderSide(color: Color(0xFFEF4444))),
-                    onPressed: () => _tabController.animateTo(3),
-                    icon: const Icon(Icons.shield_rounded, size: 16),
-                    label: const Text("Review Safe Haven Desk"),
-                  ),
+                  Icon(Icons.location_city_rounded, color: brandColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text("Next Gathering: ${settings.reunionLocation}",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: onSurfaceColor)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text("Host Branch: ${settings.reunionHostBranch}", style: TextStyle(fontSize: 11.5, color: brandColor)),
+              Text("Venue: ${settings.reunionVenue}", style: TextStyle(fontSize: 11, color: onSurfaceColor.withOpacity(0.65))),
+              const Divider(height: 18),
+              Row(
+                children: [
+                  Text("Pass Prices: Adult R${settings.adultTicketPrice.toStringAsFixed(0)} | Youth R${settings.youthTicketPrice.toStringAsFixed(0)} | T-Shirt R${settings.tShirtPrice.toStringAsFixed(0)}",
+                      style: TextStyle(fontSize: 11, color: onSurfaceColor.withOpacity(0.75))),
                 ],
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 14),
+
+        // 📍 DIRECTIVES & MODAL LAUNCHERS
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: brandColor, foregroundColor: isDark ? Colors.black : Colors.white),
+              onPressed: () => _showEditReunionHostModal(context),
+              icon: const Icon(Icons.edit_location_alt_rounded, size: 16),
+              label: const Text("Edit Host & Location"),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+              onPressed: () => _showEditTicketPricesDialog(context),
+              icon: const Icon(Icons.price_change_rounded, size: 16),
+              label: const Text("Set Ticket Prices"),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Metrics Grid
+        GridView.count(
+          crossAxisCount: MediaQuery.of(context).size.width > 700 ? 4 : 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 1.35,
+          children: [
+            _statMetricCard("Connected Households", "184 Families", Icons.family_restroom_rounded, brandColor, cardColor, borderColor, onSurfaceColor),
+            _statMetricCard("Active Proposals", "${_adminTopics.length} Topics", Icons.how_to_vote_rounded, const Color(0xFF3B82F6), cardColor, borderColor, onSurfaceColor),
+            _statMetricCard("Verified Artisans", "${_adminProfessionals.length} Members", Icons.verified_rounded, const Color(0xFF10B981), cardColor, borderColor, onSurfaceColor),
+            _statMetricCard("Crisis Reports", "${_crisisTokens.length} Active", Icons.shield_rounded, const Color(0xFFEF4444), cardColor, borderColor, onSurfaceColor),
+          ],
         ),
       ],
     );
@@ -457,7 +599,7 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
     Color onSurfaceColor,
   ) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(14),
@@ -467,17 +609,17 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 15)),
-          Text(label, style: TextStyle(color: onSurfaceColor.withOpacity(0.65), fontSize: 10.5)),
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 14)),
+          Text(label, style: TextStyle(color: onSurfaceColor.withOpacity(0.65), fontSize: 10)),
         ],
       ),
     );
   }
 
   // ===========================================================================
-  // TAB 2: KGOTLA TOPICS MODERATION
+  // TAB 2: KGOTLA TOPICS MODERATION (PROPOSALS VS FINALISED)
   // ===========================================================================
   Widget _buildAgendaModerationTab(
     Color cardColor,
@@ -493,12 +635,13 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
           "REUNION 2027 AGENDA DELIBERATION",
           style: TextStyle(color: brandColor, fontWeight: FontWeight.bold, fontSize: 11),
         ),
-        Text("Approve Tabled Topics for Official Kgotla Floor",
+        Text("Ratify Proposals for the Finalised Agenda",
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: onSurfaceColor)),
         const SizedBox(height: 16),
 
-        ..._pendingTopics.map((topic) {
-          final bool isApproved = topic['isApproved'] == true;
+        ..._adminTopics.map((topic) {
+          final bool isFinalised = topic['isFinalised'] == true;
+          final int netScore = (topic['likes'] as int) - (topic['dislikes'] as int);
 
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -506,7 +649,7 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
             decoration: BoxDecoration(
               color: cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isApproved ? const Color(0xFF10B981).withOpacity(0.5) : borderColor),
+              border: Border.all(color: isFinalised ? const Color(0xFF10B981).withOpacity(0.5) : borderColor),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,41 +663,42 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
-                              color: isApproved ? const Color(0xFF10B981).withOpacity(0.12) : const Color(0xFFF59E0B).withOpacity(0.12),
+                              color: isFinalised ? const Color(0xFF10B981).withOpacity(0.12) : const Color(0xFFF59E0B).withOpacity(0.12),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              isApproved ? "✅ ADOPTED FOR AGENDA" : "⏳ UNDER ELDER REVIEW",
-                              style: TextStyle(color: isApproved ? const Color(0xFF10B981) : brandColor, fontSize: 9.5, fontWeight: FontWeight.bold),
+                              isFinalised ? "✅ FINALISED FOR PE 2027" : "⏳ PROPOSAL IN VOTING",
+                              style: TextStyle(color: isFinalised ? const Color(0xFF10B981) : brandColor, fontSize: 9.5, fontWeight: FontWeight.bold),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text("${topic['votes']} member votes", style: TextStyle(color: onSurfaceColor.withOpacity(0.6), fontSize: 11)),
+                          Text("Net: +$netScore (👍 ${topic['likes']} | 👎 ${topic['dislikes']})",
+                              style: TextStyle(color: onSurfaceColor.withOpacity(0.6), fontSize: 10.5)),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(topic['title'], style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 13.5)),
-                      const SizedBox(height: 3),
-                      Text("Submitted by: ${topic['author']}", style: TextStyle(color: brandColor, fontSize: 11.5)),
+                      Text(topic['title'], style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 2),
+                      Text("Author: ${topic['author']}", style: TextStyle(color: brandColor, fontSize: 11)),
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isApproved ? borderColor : const Color(0xFF10B981),
-                    foregroundColor: isApproved ? onSurfaceColor : Colors.white,
+                    backgroundColor: isFinalised ? borderColor : const Color(0xFF10B981),
+                    foregroundColor: isFinalised ? onSurfaceColor : Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   ),
                   onPressed: () {
                     setState(() {
-                      topic['isApproved'] = !isApproved;
+                      topic['isFinalised'] = !isFinalised;
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(isApproved ? "Topic moved back to review." : "Topic adopted for 2027 Kgotla Floor!")),
+                      SnackBar(content: Text(isFinalised ? "Moved back to proposals." : "Adopted for Finalised Reunion Agenda!")),
                     );
                   },
-                  child: Text(isApproved ? "Revoke" : "Adopt"),
+                  child: Text(isFinalised ? "Revoke" : "Adopt"),
                 ),
               ],
             ),
@@ -578,15 +722,16 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
       padding: const EdgeInsets.all(20),
       children: [
         Text(
-          "SUPPORTING THE HOUSEHOLD OF FAITH",
+          "HOUSEHOLD OF FAITH DIRECTORY",
           style: TextStyle(color: brandColor, fontWeight: FontWeight.bold, fontSize: 11),
         ),
         Text("Verify & Endorse Makhetha Family Artisans",
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: onSurfaceColor)),
         const SizedBox(height: 16),
 
-        ..._pendingBusinesses.map((b) {
-          final bool isEndorsed = b['isEndorsed'] == true;
+        ..._adminProfessionals.map((p) {
+          final bool isEndorsed = p['isEndorsed'] == true;
+          final bool isVolunteer = p['isVolunteer'] == true;
 
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -604,15 +749,16 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
                     children: [
                       Row(
                         children: [
-                          Text(b['business'], style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 13.5)),
+                          Text(p['name'], style: TextStyle(color: onSurfaceColor, fontWeight: FontWeight.bold, fontSize: 13.5)),
                           if (isEndorsed) ...[
                             const SizedBox(width: 6),
                             const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 16),
                           ],
                         ],
                       ),
-                      const SizedBox(height: 3),
-                      Text("Member: ${b['owner']} • ${b['trade']}", style: TextStyle(color: brandColor, fontSize: 11.5)),
+                      Text("${p['profession']} • ${p['branch']}", style: TextStyle(color: brandColor, fontSize: 11)),
+                      Text(isVolunteer ? "🤝 Volunteers Pro Bono Family Guidance" : "🏷️ Standard Family Discount Rate",
+                          style: TextStyle(color: onSurfaceColor.withOpacity(0.65), fontSize: 10.5)),
                     ],
                   ),
                 ),
@@ -623,10 +769,10 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
                   ),
                   onPressed: () {
                     setState(() {
-                      b['isEndorsed'] = !isEndorsed;
+                      p['isEndorsed'] = !isEndorsed;
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(isEndorsed ? "Endorsement removed." : "Awarded Bakoena Clan Endorsement Badge!")),
+                      SnackBar(content: Text(isEndorsed ? "Endorsement revoked." : "Awarded Bakoena Clan Endorsement Badge 🐊!")),
                     );
                   },
                   child: Text(isEndorsed ? "Revoke" : "Endorse"),
@@ -640,7 +786,7 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
   }
 
   // ===========================================================================
-  // TAB 4: SAFE HAVEN CRISIS TRIAGE
+  // TAB 4: SAFE HAVEN CRISIS TRIAGE (BO-RAKGADI CIRCLE)
   // ===========================================================================
   Widget _buildCrisisTriageTab(
     Color cardColor,
@@ -660,7 +806,7 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: onSurfaceColor)),
         const SizedBox(height: 16),
 
-        ..._crisisCases.map((c) {
+        ..._crisisTokens.map((c) {
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
@@ -689,7 +835,7 @@ class _ClanAdminDashboardScreenState extends State<ClanAdminDashboardScreen>
                 const SizedBox(height: 10),
                 Text(c['category'], style: TextStyle(fontWeight: FontWeight.bold, color: onSurfaceColor, fontSize: 13.5)),
                 const SizedBox(height: 4),
-                Text("Assigned Circle: ${c['advocate']}", style: TextStyle(color: brandColor, fontSize: 11.5)),
+                Text("Assigned Circle: ${c['assigned']}", style: TextStyle(color: brandColor, fontSize: 11.5)),
                 Text("Status: ${c['status']}", style: const TextStyle(color: Color(0xFF10B981), fontSize: 11.5, fontWeight: FontWeight.w600)),
                 Divider(color: borderColor, height: 20),
                 SizedBox(
