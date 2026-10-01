@@ -20,5 +20,9 @@
   <string>????</string>
   <key>CFBundleVersion</key>
   <string>1.0</string>
+  <key>NSCameraUsageDescription</key>
+<string>We need access to your camera so you can take photos of items you want to list in the Makhetha Market.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>We need access to your photos so you can upload pictures of items from your gallery.</string>
 </dict>
 </plist>

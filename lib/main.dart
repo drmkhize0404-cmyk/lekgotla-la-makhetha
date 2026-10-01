@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lekgotla_la_makhetha/screens/makhetha_history_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // Services
@@ -10,7 +9,7 @@ import 'services/clan_settings_service.dart';
 import 'services/clan_auth_service.dart';
 
 // Screens
-import 'screens/yaga_marketplace_screen.dart';
+import 'screens/clan_market_screen.dart';
 import 'screens/makhetha_professions_screen.dart';
 import 'screens/reunion_kgotla_screen.dart';
 import 'screens/family_tracer_screen.dart';
@@ -20,14 +19,16 @@ import 'screens/clan_vault_screen.dart';
 import 'screens/safe_haven_crisis_screen.dart';
 import 'screens/clan_admin_dashboard_screen.dart';
 import 'screens/clan_committee_screen.dart';
+import 'screens/makhetha_history_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ThemeService().initTheme();
   await ClanSettingsService().initSettings();
-  await ClanAuthService().initAuth(); // 📍 Added Auth Guard
+  await ClanAuthService().initAuth();
   runApp(const MakhethaClanApp());
 }
+
 
 class MakhethaClanApp extends StatelessWidget {
   const MakhethaClanApp({super.key});
@@ -56,10 +57,10 @@ class MakhethaMasterHomeView extends StatefulWidget {
 }
 
 class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
-  final ScrollController _pageScroll = ScrollController();
+  // 📍 FIX: Key that reliably opens the drawer on all mobile screens & web
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // 📍 24 SEPTEMBER 2027 REUNION COUNTDOWN
-  static final DateTime _reunionDate = DateTime(2027, 9, 24, 9, 0, 0);
+  final ScrollController _pageScroll = ScrollController();
   Timer? _countdownTimer;
   Duration _timeUntilReunion = Duration.zero;
 
@@ -98,7 +99,7 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
 
   void _updateReunionCountdown() {
     final now = DateTime.now();
-    final difference = _reunionDate.difference(now);
+    final difference = ClanSettingsService().reunionDate.difference(now);
     setState(() {
       _timeUntilReunion = difference.isNegative ? Duration.zero : difference;
     });
@@ -114,7 +115,7 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
   }
 
   void _openWhatsApp(String message) {
-    const String councilNumber = "27821234567";
+    const String councilNumber = "27821234567"; // Makhetha Council WhatsApp
     final String query = Uri.encodeComponent(message);
     _launchExternal("https://wa.me/$councilNumber?text=$query");
   }
@@ -191,41 +192,62 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
     final bool isWideScreen = screenWidth > 880;
     final double bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      endDrawer: _buildOrganizedSidebar(context, brandColor, onSurfaceColor, cardColor, borderColor),
-      body: SafeArea(
-        top: false,
-        bottom: true,
-        child: CustomScrollView(
-          controller: _pageScroll,
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            _buildTopNav(context, isWideScreen, isDark, brandColor, onSurfaceColor, cardColor, borderColor),
-            SliverToBoxAdapter(
-              child: _buildHeroDisplay(isWideScreen, isDark, brandColor, onSurfaceColor),
+    return AnimatedBuilder(
+      animation: ClanSettingsService(),
+      builder: (context, _) {
+        return Scaffold(
+          key: _scaffoldKey, // 📍 Connects the key to the Scaffold
+          backgroundColor: theme.scaffoldBackgroundColor,
+          endDrawer: _buildOrganizedSidebar(context, brandColor, onSurfaceColor, cardColor, borderColor),
+          body: SafeArea(
+            top: false,
+            bottom: true,
+            child: CustomScrollView(
+              controller: _pageScroll,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // 1. TOP NAV
+                _buildTopNav(context, isWideScreen, isDark, brandColor, onSurfaceColor, cardColor, borderColor),
+
+                // 2. HERO DISPLAY (DYNAMIC REUNION LOCATION, HOST & COUNTDOWN)
+                SliverToBoxAdapter(
+                  child: _buildHeroDisplay(isWideScreen, isDark, brandColor, onSurfaceColor),
+                ),
+
+                // 3. ANONYMOUS GBV BANNER
+                SliverToBoxAdapter(
+                  child: _buildGbvCrisisBanner(context, isWideScreen, isDark, cardColor, borderColor),
+                ),
+
+                // 4. REUNION SCHEDULE & TICKET STATUS
+                SliverToBoxAdapter(
+                  child: _buildReunionScheduleBar(context, isWideScreen, isDark, brandColor, onSurfaceColor, cardColor, borderColor),
+                ),
+
+                // 5. 6 LEKGOTLA ACTION HUBS
+                SliverToBoxAdapter(
+                  child: _buildPillarsGrid(context, isWideScreen, isDark, brandColor, onSurfaceColor, cardColor, borderColor),
+                ),
+
+                // 6. CLAN MARKET SPOTLIGHT (PRE-LOVED & PASS-DOWNS)
+                SliverToBoxAdapter(
+                  child: _buildClanMarketSpotlight(context, isWideScreen, isDark, brandColor, onSurfaceColor, cardColor, borderColor),
+                ),
+
+                // 7. SAFETRADE ESCROW WALLET
+                SliverToBoxAdapter(
+                  child: _buildEscrowWalletSection(context, isWideScreen, isDark, brandColor),
+                ),
+
+                // 8. DEEP CLAN FOOTER
+                SliverToBoxAdapter(
+                  child: _buildClanFooter(context, isWideScreen, isDark, brandColor, bottomPadding),
+                ),
+              ],
             ),
-            SliverToBoxAdapter(
-              child: _buildGbvCrisisBanner(context, isWideScreen, isDark, cardColor, borderColor),
-            ),
-            SliverToBoxAdapter(
-              child: _buildReunionScheduleBar(context, isWideScreen, isDark, brandColor, onSurfaceColor, cardColor, borderColor),
-            ),
-            SliverToBoxAdapter(
-              child: _buildPillarsGrid(context, isWideScreen, isDark, brandColor, onSurfaceColor, cardColor, borderColor),
-            ),
-            SliverToBoxAdapter(
-              child: _buildYagaMarketplaceSpotlight(context, isWideScreen, isDark, brandColor, onSurfaceColor, cardColor, borderColor),
-            ),
-            SliverToBoxAdapter(
-              child: _buildEscrowWalletSection(context, isWideScreen, isDark, brandColor),
-            ),
-            SliverToBoxAdapter(
-              child: _buildClanFooter(context, isWideScreen, isDark, brandColor, bottomPadding),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -281,13 +303,13 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
                 "LEKGOTLA LA MAKHETHA",
                 style: GoogleFonts.montserrat(
                   fontWeight: FontWeight.w900,
-                  fontSize: isWideScreen ? 14 : 12.5,
+                  fontSize: isWideScreen ? 14 : 12,
                   letterSpacing: 1.1,
                   color: onSurfaceColor,
                 ),
               ),
               Text(
-                "Bakoena ba heso • Global Clan Network",
+                "Host: ${ClanSettingsService().reunionLocation}",
                 style: TextStyle(fontSize: 9.5, color: brandColor, fontWeight: FontWeight.bold),
               ),
             ],
@@ -322,8 +344,8 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
             ),
           ),
           const SizedBox(width: 12),
-          _navBtn("Yaga Shop", () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const YagaMarketplaceScreen()));
+          _navBtn("Clan Market", () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ClanMarketScreen()));
           }),
           _navBtn("Committee", () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ClanCommitteeScreen()));
@@ -349,9 +371,12 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
           ),
           const SizedBox(width: 20),
         ] else ...[
+          // 📍 FIXED: Reliable drawer trigger on mobile
           IconButton(
-            icon: Icon(Icons.menu_rounded, color: onSurfaceColor),
-            onPressed: () => Scaffold.of(context).openEndDrawer(),
+            icon: Icon(Icons.menu_rounded, color: onSurfaceColor, size: 26),
+            onPressed: () {
+              _scaffoldKey.currentState?.openEndDrawer();
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -374,10 +399,11 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
   }
 
   // ===========================================================================
-  // 2. HERO DISPLAY (ALL 11 PALETTES + 3 ACTION BUTTONS)
+  // 2. HERO DISPLAY (DYNAMIC REUNION HOST, VENUE & 11 PALETTES)
   // ===========================================================================
   Widget _buildHeroDisplay(bool isWideScreen, bool isDark, Color brandColor, Color onSurfaceColor) {
     final currentPalette = ThemeService().currentPalette.value;
+    final settings = ClanSettingsService();
 
     List<Color> heroGradient;
     Color accentColor;
@@ -465,7 +491,7 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
                   children: [
                     const Text("🐊 ", style: TextStyle(fontSize: 14)),
                     Text(
-                      "BAKOENA HERITAGE • SEBOKO: KOENA",
+                      "HOST BRANCH: ${settings.reunionHostBranch.toUpperCase()}",
                       style: TextStyle(color: accentColor, fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 1),
                     ),
                   ],
@@ -484,16 +510,21 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
                   height: 1.2,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
 
               Text(
-                "Connecting every branch and generation worldwide. Preserving ancestral heritage, building clan businesses, and caring for one another in unity.",
+                "Next Gathering: ${settings.reunionLocation}",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withOpacity(0.88), fontSize: isWideScreen ? 14 : 12.5, height: 1.45),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
               ),
-              const SizedBox(height: 20),
+              Text(
+                "Venue: ${settings.reunionVenue}",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11.5),
+              ),
+              const SizedBox(height: 18),
 
-              // Countdown Box
+              // 📍 24 SEPT 2027 REAL-TIME COUNTDOWN TIMER
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 decoration: BoxDecoration(
@@ -537,7 +568,7 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
               ),
               const SizedBox(height: 22),
 
-              // 📍 3 Action Buttons (Tickets, Committee, Submit Topics)
+              // Action Buttons
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -931,12 +962,12 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
   ) {
     final List<Map<String, dynamic>> hubs = [
       {
-        "title": "Yaga Pre-Loved Market",
-        "desc": "Buy, sell, or gift pre-loved fashion, shoes, and home goods within the family safely.",
+        "title": "Makhetha Clan Market",
+        "desc": "Buy, sell, or gift pre-loved fashion, blankets & goods safely with PUDO/Paxi shipping.",
         "icon": Icons.storefront_rounded,
-        "badge": "YAGA-STYLE",
+        "badge": "CLOTHING & GOODS",
         "onTap": () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const YagaMarketplaceScreen()));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const ClanMarketScreen()));
         },
       },
       {
@@ -1066,9 +1097,9 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
   }
 
   // ===========================================================================
-  // 6. YAGA MARKETPLACE SPOTLIGHT
+  // 6. CLAN MARKET SPOTLIGHT
   // ===========================================================================
-  Widget _buildYagaMarketplaceSpotlight(
+  Widget _buildClanMarketSpotlight(
     BuildContext context,
     bool isWideScreen,
     bool isDark,
@@ -1094,26 +1125,26 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: const Color(0xFFEC4899).withOpacity(0.12), shape: BoxShape.circle),
-                  child: const Icon(Icons.checkroom_rounded, color: Color(0xFFEC4899), size: 20),
+                  decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.12), shape: BoxShape.circle),
+                  child: const Icon(Icons.checkroom_rounded, color: Color(0xFF10B981), size: 20),
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  "MAKHETHA CLOSET & MARKET (YAGA-STYLE)",
+                  "MAKHETHA CLAN MARKETPLACE & CLOSET",
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: brandColor, letterSpacing: 0.8),
                 ),
                 const Spacer(),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEC4899),
+                    backgroundColor: const Color(0xFF10B981),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const YagaMarketplaceScreen()));
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ClanMarketScreen()));
                   },
-                  icon: const Icon(Icons.add_a_photo_rounded, size: 14),
-                  label: const Text("Open Closet Market", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                  icon: const Icon(Icons.storefront_rounded, size: 14),
+                  label: const Text("Open Clan Market", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
                 ),
               ],
             ),
@@ -1124,7 +1155,7 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
             ),
             const SizedBox(height: 4),
             Text(
-              "Pass down gently used clothes, designer pieces, kids' school uniforms, and home appliances safely within the family. Funds are held in Escrow until delivery.",
+              "Pass down gently used clothes, designer pieces, kids' school uniforms, and home appliances safely within the family. Funds are held in Escrow until courier delivery.",
               style: TextStyle(color: onSurfaceColor.withOpacity(0.68), fontSize: 12, height: 1.4),
             ),
           ],
@@ -1541,12 +1572,12 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
             const Divider(),
 
             // --- 3. COMMERCE & TRADES ---
-            _sidebarHeader("COMMERCE, FASHION & TRADES", brandColor),
+            _sidebarHeader("COMMERCE & TRADES", brandColor),
             _sidebarTile(
               Icons.storefront_rounded,
-              "Yaga Pre-Loved Closet & Market",
-              "Shop blankets, clothes & goods with PUDO/Paxi",
-              () => const YagaMarketplaceScreen(),
+              "Makhetha Clan Market",
+              "Shop pre-loved fashion, blankets, brands & free gifts",
+              () => const ClanMarketScreen(),
               context,
               onSurfaceColor,
             ),
@@ -1571,13 +1602,13 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
             // --- 4. HERITAGE & SOLIDARITY ---
             _sidebarHeader("HERITAGE & SOLIDARITY", brandColor),
             _sidebarTile(
-  Icons.auto_stories_rounded,
-  "Nalane ea ha Makhetha (History Book)",
-  "Origins, Chief Makhetha, 'Mantsopa & Lithoko",
-  () => const MakhethaHistoryScreen(),
-  context,
-  onSurfaceColor,
-),
+              Icons.auto_stories_rounded,
+              "Nalane ea ha Makhetha (History Book)",
+              "Origins, Chief Makhetha, 'Mantsopa & Lithoko",
+              () => const MakhethaHistoryScreen(),
+              context,
+              onSurfaceColor,
+            ),
             _sidebarTile(
               Icons.family_restroom_rounded,
               "Family Lineage & Bakoena Roots",
@@ -1673,7 +1704,10 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
                   style: TextStyle(fontSize: 10.5, color: onSurfaceColor.withOpacity(0.6))),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ClanAdminDashboardScreen()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ClanAdminDashboardScreen()),
+                );
               },
             ),
             const SizedBox(height: 24),
@@ -1688,7 +1722,12 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
       padding: const EdgeInsets.only(left: 16, top: 12, bottom: 4),
       child: Text(
         label,
-        style: TextStyle(color: brandColor, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1),
+        style: TextStyle(
+          color: brandColor,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.1,
+        ),
       ),
     );
   }
@@ -1704,7 +1743,10 @@ class _MakhethaMasterHomeViewState extends State<MakhethaMasterHomeView> {
     return ListTile(
       dense: true,
       leading: Icon(icon, color: textColor, size: 20),
-      title: Text(title, style: TextStyle(color: textColor, fontSize: 12.5, fontWeight: FontWeight.bold)),
+      title: Text(
+        title,
+        style: TextStyle(color: textColor, fontSize: 12.5, fontWeight: FontWeight.bold),
+      ),
       subtitle: Text(
         subtitle,
         style: TextStyle(color: textColor.withOpacity(0.65), fontSize: 10.5),
